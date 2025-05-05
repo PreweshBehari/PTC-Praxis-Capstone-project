@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 
 from datetime import date
+from dateutil.relativedelta import relativedelta
 
 from scipy.cluster.hierarchy import linkage
 
@@ -21,69 +22,132 @@ from app.data_visualization import (
 from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
-from app.utils import create_unique_value
+from app.utils import create_unique_value, human_readable_date
 
 
 ##########################################################################################
 # Data Visualization Methods
 ##########################################################################################
 
+# Settings
 st.set_page_config(page_title="Efficient Portfolio Builder", layout="wide")
 
 st.title("📈 Efficient Portfolio Builder (Markowitz vs HRP)")
 
+# Initialize in session_state if not already there
+if 'mode' not in st.session_state:
+    st.session_state.mode = None
+if 'stock_price_file' not in st.session_state:
+    st.session_state.stock_price_file = None
+if 'user_uploaded_file' not in st.session_state:
+    st.session_state.user_uploaded_file = False
+if 'create_portfolio_clicked' not in st.session_state:
+    st.session_state.create_portfolio_clicked = False
+
+# Get today's date
+date_today_obj = date.today()
+
+# Calculate start date as 5 years before date_today
+start_date_obj = date_today_obj - relativedelta(years=5)
+
+# Format as string
+start_date = start_date_obj.strftime("%Y-%m-%d")
+end_date = date_today_obj.strftime("%Y-%m-%d")
+
+# Get Tickers
+tickers_dict = get_tickers()
+
+# Create mapping: name -> ticker
+name_to_ticker = {name: ticker for ticker, name in tickers_dict.items()}
+
+# List of names to display
+stock_names = list(name_to_ticker.keys())
+
+# Sidebar
+st.sidebar.header("Portfolio Settings")
+start_date = st.sidebar.date_input("Start Date", pd.to_datetime(start_date))
+end_date = st.sidebar.date_input("End Date", pd.to_datetime(end_date))
+# Streamlit multiselect with display names
+selected_ticker_names = st.sidebar.multiselect(
+    "Select stocks", stock_names, default=stock_names[:30]
+)
+
+# Map back to ticker codes
+selected_tickers = [name_to_ticker[name] for name in selected_ticker_names]
+
+st.header(f"1. Load the Data")
+
+# 3 columns: left, middle, right
+col1, col_mid, col2 = st.columns([1, 1, 1], border=True)
+
+# Variables to check which button is clicked
+with col1:
+    if st.button("Upload CSV"):
+        st.session_state.mode = 'upload'
+
+with col_mid:
+    st.markdown("<div style='text-align: center; padding-top: 0.5em; font-weight: bold;'>------- OR -------</div>", unsafe_allow_html=True)
+
+with col2:
+    if st.button("Download Stock Price"):
+        st.session_state.mode = 'download'
+
+# Upload CSV logic
+if st.session_state.mode == 'upload':
+    st.session_state.create_portfolio_clicked = False # Clear Clicked state
+
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    if uploaded_file is not None:
+        st.session_state.user_uploaded_file = True
+        st.session_state.stock_price_file = uploaded_file
+        st.session_state.create_portfolio_clicked = True
+
+# Download Stock Price logic
+elif st.session_state.mode == 'download':
+    st.session_state.create_portfolio_clicked = False # Clear Clicked state
+    st.session_state.user_uploaded_file = False
+
+    combined_keys = f"{''.join(selected_ticker_names)}{start_date}-{end_date}"
+    stock_price_file_unique_id = create_unique_value(combined_keys)
+
+    stock_price_file = f"data/stock_prices_{stock_price_file_unique_id}.csv"
+
+    # Download the stock prices
+    st.subheader(f"Downloading Stock Prices ({human_readable_date(start_date)} - {human_readable_date(end_date)})")
+
+    # Download stock prices for the selected stocks
+    close_prices_data = download_close_prices(selected_tickers, start_date, end_date)
+
+    # Keep only the second level of column MultiIndex (named 'Ticker')
+    close_prices_data.columns = close_prices_data.columns.get_level_values('Ticker')
+
+    # Save to CSV
+    close_prices_data.to_csv(stock_price_file)
+
+    st.session_state.stock_price_file = stock_price_file
+    st.session_state.create_portfolio_clicked = True
+
+# if st.button("Create Portfolios"):
+#     st.session_state.create_portfolio_clicked = True
+
 # Main app logic
 try:
+    if st.session_state.create_portfolio_clicked:
+        user_uploaded_file = st.session_state.user_uploaded_file
+        stock_price_file = st.session_state.stock_price_file
 
-    start_date = "2020-01-01"
-    end_date = date.today().strftime("%Y-%m-%d")
+        # Use uploaded file
+        if user_uploaded_file:
+            st.info(f"Loaded Stock Prices from uploaded file: {stock_price_file.name}")
 
-    # Get Tickers
-    tickers_dict = get_tickers()
-
-    # Create mapping: name -> ticker
-    name_to_ticker = {name: ticker for ticker, name in tickers_dict.items()}
-
-    # List of names to display
-    stock_names = list(name_to_ticker.keys())
-
-    # Sidebar
-    st.sidebar.header("Portfolio Settings")
-    # Streamlit multiselect with display names
-    selected_ticker_names = st.sidebar.multiselect(
-        "Select stocks", stock_names, default=stock_names[:30]
-    )
-    method = st.sidebar.radio("Optimization Method", ["HRP", "Markowitz"])
-    start_date = st.sidebar.date_input("Start Date", pd.to_datetime(start_date))
-    end_date = st.sidebar.date_input("End Date", pd.to_datetime(end_date))
-    max_weight = st.sidebar.slider("Max allocation per stock (%)", 1, 100, 30)
-
-    # Map back to ticker codes
-    selected_tickers = [name_to_ticker[name] for name in selected_ticker_names]
-
-    if st.button("Load Stock Prices and Create Portfolios"):
-        combined_keys = f"{''.join(selected_ticker_names)}{start_date}-{end_date}"
-        stock_price_file_unique_id = create_unique_value(combined_keys)
-
-        stock_price_file = f"data/stock_prices_{stock_price_file_unique_id}.csv"
-
-        # Stock prices CSV already exists, load from cache
-        if os.path.exists(stock_price_file):
             close_prices_data = pd.read_csv(stock_price_file)
+        # Stock prices CSV already exists, load from cache
+        elif os.path.exists(stock_price_file):
+            st.info(f"Loaded Stock Prices from {stock_price_file} ({human_readable_date(start_date)} - {human_readable_date(end_date)})")
 
-            st.info(f"Loaded Stock Prices from {stock_price_file}")
+            close_prices_data = pd.read_csv(stock_price_file)
         else:
-            # Download the stock prices
-            st.subheader("Downloading Stock Prices")
-
-            # Download stock prices for the selected stocks
-            close_prices_data = download_close_prices(selected_tickers, start_date, end_date)
-
-            # Keep only the second level of column MultiIndex (named 'Ticker')
-            close_prices_data.columns = close_prices_data.columns.get_level_values('Ticker')
-
-            # Save to CSV
-            close_prices_data.to_csv(stock_price_file)
+            st.error("No Stock Price data found.")
 
         # EDA
         st.header("2. Exploratory Data Analysis")
@@ -103,15 +167,16 @@ try:
         # st.text(buffer.getvalue())
             
         # Create Heatmap
-        create_heatmap(close_prices_data)
+        create_heatmap(close_prices_data, topn=30)
 
-        st.header("Data Preparation")
+        st.header("3. Data Preparation")
         # Checking for missing values and remove the missing values
         st.write("Check for missing values in the dataset")
         any_missing_values = close_prices_data.isnull().values.any()
-        st.write(f'Missing Values = {any_missing_values}')
 
         if any_missing_values:
+            st.warning("There are missing values.")
+
             # Fill the missing values with the last value available in the dataset.
             # forward-fills missing values (uses the last known value to fill in gaps).
             close_prices_data.ffill(inplace=True)
@@ -120,10 +185,13 @@ try:
             close_prices_data = drop_columns_with_excessive_missing_data(close_prices_data)
 
             # Double Checking for missing values
-            st.write(f'Missing Values = {close_prices_data.isnull().values.any()}')
+            if close_prices_data.isnull().values.any():
+                st.error("There are still missing values.")
+        else:
+            st.success("There are no missing values.")
 
-        # 4.2 Data Transformation
-        st.header("Data Transformation")
+        # 4 Data Transformation
+        st.header("4. Data Transformation")
         st.info("""
             For the purpose of clustering, we will be using annual returns.
             Additionally, we will train the data followed by testing.
@@ -210,6 +278,8 @@ try:
                 2. HRP - Hierarchial Risk Parity
         """)
 
+        st.subheader("5.3 Getting the portfolio weights for all types of asset allocation")
+
         # Build Portfolios
         portfolios = build_portfolios(returns)
 
@@ -218,6 +288,8 @@ try:
 
         # 6. Backtesting-Out Of Sample
         st.header("6. Backtesting-Out Of Sample")
+
+        st.info("Take the portfolio weights, multiply them with the stock returns, and get the daily portfolio returns for both training and testing periods.")
 
         # Compute portfolio returns in-sample and out-of-sample
         st.subheader("6.1 In Sample and Out of Sample Results")
@@ -259,8 +331,6 @@ try:
 
         # View the out-sample results
         st.write(outsample_results)
-
-
 
 except Exception as e:
     st.error(f"Error: {str(e)}")

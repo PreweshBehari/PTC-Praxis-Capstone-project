@@ -30,7 +30,7 @@ def get_tickers(save_path="data/tickers.json"):
     if os.path.exists(save_path):
         with open(save_path, 'r') as f:
             tickers = json.load(f)
-        st.info(f"Loaded {len(tickers)} tickers from {save_path}")
+        # st.info(f"Loaded {len(tickers)} tickers from {save_path}")
         return tickers
 
     # Otherwise, fetch the S&P 500 list from Wikipedia

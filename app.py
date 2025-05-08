@@ -22,7 +22,7 @@ from app.data_visualization import (
 from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
-from app.portfolio_insights import display_insights
+from app.portfolio_insights import display_insights, recommend_stocks
 from app.utils import create_unique_value, human_readable_date
 
 
@@ -68,10 +68,24 @@ stock_names = list(name_to_ticker.keys())
 st.sidebar.header("Portfolio Settings")
 start_date = st.sidebar.date_input("Start Date", pd.to_datetime(start_date))
 end_date = st.sidebar.date_input("End Date", pd.to_datetime(end_date))
+# Add a slider to configure the threshold
+threshold = st.sidebar.slider(
+    "Minimum allocation threshold (%)",
+    min_value=0.0,
+    max_value=30.0,
+    value=0.5,
+    step=0.1,
+    help="Only stocks with an allocation above this percentage will be recommended."
+)
 # Streamlit multiselect with display names
 selected_ticker_names = st.sidebar.multiselect(
     "Select stocks", stock_names, default=stock_names[:30]
 )
+
+# Minimal two stocks should be selected
+if len(selected_ticker_names) < 2:
+    st.error("Select atleast two stocks from the selectbox")
+    st.stop()
 
 # Map back to ticker codes
 selected_tickers = [name_to_ticker[name] for name in selected_ticker_names]
@@ -117,7 +131,7 @@ elif st.session_state.mode == 'download':
     st.subheader(f"Downloading Stock Prices ({human_readable_date(start_date)} - {human_readable_date(end_date)})")
 
     # Download stock prices for the selected stocks
-    close_prices_data = download_close_prices(selected_tickers, start_date, end_date)
+    close_prices_data = download_close_prices(selected_tickers, start_date, end_date, tickers_dict)
 
     # Keep only the second level of column MultiIndex (named 'Ticker')
     close_prices_data.columns = close_prices_data.columns.get_level_values('Ticker')
@@ -128,8 +142,6 @@ elif st.session_state.mode == 'download':
     st.session_state.stock_price_file = stock_price_file
     st.session_state.create_portfolio_clicked = True
 
-# if st.button("Create Portfolios"):
-#     st.session_state.create_portfolio_clicked = True
 
 # Main app logic
 try:
@@ -333,9 +345,19 @@ try:
         # # View the out-sample results
         # st.write(outsample_results)
 
-
-        # Call this in your Streamlit app
+        # Display Insights
         display_insights(insample_results, outsample_results)
+
+        # 7. Recommended Stocks
+        st.header("7. Recommended Stocks")
+
+        # Using HRP Strategy
+        st.markdown(f"#### Recommended Stocks – HRP Strategy")
+        recommend_stocks(portfolios, strategy_name="HRP", threshold=threshold/100, tickers=tickers_dict)
+
+        # Using MVP Strategy
+        st.markdown(f"#### Recommended Stocks – MVP Strategy")
+        recommend_stocks(portfolios, strategy_name="MVP", threshold=threshold/100, tickers=tickers_dict)
 
 except Exception as e:
     st.error(f"Error: {str(e)}")

@@ -1,37 +1,22 @@
-# import numpy as np
-# import pandas as pd
-# from pypfopt.efficient_frontier import EfficientFrontier
-# from pypfopt.risk_models import CovarianceShrinkage
-# from pypfopt.expected_returns import mean_historical_return
-# from scipy.cluster.hierarchy import linkage, dendrogram
-# from scipy.spatial.distance import squareform
-
-
+##########################################################################################
+# Imports
+##########################################################################################
 # Load libraries
-import math
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pandas import read_csv, set_option
-from pandas.plotting import scatter_matrix
-import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-from datetime import date
 
 # Import Model Packages
 import scipy.cluster.hierarchy as sch
-from sklearn.cluster import AgglomerativeClustering
-from scipy.cluster.hierarchy import fcluster
-from scipy.cluster.hierarchy import dendrogram, linkage, cophenet
 from scipy.spatial.distance import squareform
-from sklearn.metrics import adjusted_mutual_info_score
-from sklearn import cluster, covariance, manifold
 
 # Package for optimization of mean variance optimization
 import cvxopt as opt
 from cvxopt import blas, solvers
 
 
+##########################################################################################
+# Optimizing Methods
+##########################################################################################
 def correlDist(corr):
     """
     Convert a correlation matrix into a distance matrix for clustering.
@@ -320,70 +305,3 @@ def calculate_sample_metrics(returns, trading_days=252):
     Results = pd.DataFrame(dict(stdev=stddev, sharp_ratio=sharp_ratio))
 
     return Results
-
-
-# def get_markowitz_portfolio(returns, max_weight):
-#     mu = mean_historical_return(returns)
-#     S = CovarianceShrinkage(returns).ledoit_wolf()
-#     ef = EfficientFrontier(mu, S)
-#     ef.add_objective(lambda w: w @ S @ w)  # Minimize risk
-#     ef.add_constraint(lambda w: w <= max_weight)
-#     weights = ef.clean_weights()
-#     return pd.Series(weights)
-
-# def get_hrp_portfolio(returns):
-#     cov = returns.cov()
-#     corr = returns.corr()
-#     dist = np.sqrt((1 - corr) / 2)
-#     dist_matrix = squareform(dist.values)
-#     linkage_matrix = linkage(dist_matrix, method='ward')
-
-#     def get_quasi_diag(link):
-#         leaf_order = []
-#         def recursive(link_node):
-#             if link_node < len(returns.columns):
-#                 leaf_order.append(link_node)
-#             else:
-#                 left = int(link[link_node - len(returns.columns), 0])
-#                 right = int(link[link_node - len(returns.columns), 1])
-#                 recursive(left)
-#                 recursive(right)
-#         recursive(2 * len(returns.columns) - 2)
-#         return leaf_order
-
-#     sorted_idx = get_quasi_diag(linkage_matrix)
-#     sorted_tickers = returns.columns[sorted_idx]
-
-#     weights = pd.Series(1.0, index=sorted_tickers)
-#     cluster_var = lambda w: w.T @ cov.loc[w.index, w.index] @ w
-
-#     def recursive_bisect(tickers):
-#         if len(tickers) == 1:
-#             return
-#         split = len(tickers) // 2
-#         left = tickers[:split]
-#         right = tickers[split:]
-#         w_left = weights[left]
-#         w_right = weights[right]
-#         var_left = cluster_var(w_left / w_left.sum())
-#         var_right = cluster_var(w_right / w_right.sum())
-#         alpha = 1 - var_left / (var_left + var_right)
-#         weights[left] *= alpha
-#         weights[right] *= 1 - alpha
-#         recursive_bisect(left)
-#         recursive_bisect(right)
-
-#     recursive_bisect(sorted_tickers)
-#     weights /= weights.sum()
-#     return weights
-
-# def build_portfolio(price_df, method="HRP", max_weight=0.3):
-#     returns = price_df.pct_change().dropna()
-#     if method.upper() == "MARKOWITZ":
-#         weights = get_markowitz_portfolio(returns, max_weight)
-#     else:
-#         weights = get_hrp_portfolio(returns)
-
-#     weighted_returns = returns @ weights
-#     cum_returns = (1 + weighted_returns).cumprod()
-#     return weights, cum_returns

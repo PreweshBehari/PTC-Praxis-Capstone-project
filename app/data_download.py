@@ -50,7 +50,7 @@ def get_tickers(save_path="data/tickers.json"):
     return tickers
 
 
-def download_close_prices(tickers, start_date="2020-01-01", end_date=None):
+def download_close_prices(tickers, start_date="2020-01-01", end_date=None, ticker_names={}):
     """
     Downloads only the 'Close' prices for a list of stock tickers using yfinance.
 
@@ -61,6 +61,7 @@ def download_close_prices(tickers, start_date="2020-01-01", end_date=None):
         tickers (list of str): A list of stock ticker symbols (e.g., ['AAPL', 'MSFT']).
         start_date (str): The start date for historical data in 'YYYY-MM-DD' format.
         end_date (str or None): The end date for historical data. If None, defaults to today's date.
+        ticker_names (dict): A dictionary that has the full name of the tickers.
 
     Returns:
         pd.DataFrame: A DataFrame with dates as index and ticker symbols as columns,
@@ -75,7 +76,8 @@ def download_close_prices(tickers, start_date="2020-01-01", end_date=None):
 
     # Loop through each ticker and download data individually
     for i, ticker in enumerate(tickers):
-        status_text.text(f"Downloading {ticker} ({i+1}/{total})...")
+        stock_name = ticker_names.get(ticker, ticker) # Get stock name or fallback to ticker
+        status_text.text(f"Downloading {stock_name} ({ticker}) ({i+1}/{total})...")
         try:
             # Download the historical data
             data = yf.download(ticker, start=start_date, end=end_date,

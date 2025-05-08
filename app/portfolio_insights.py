@@ -98,3 +98,46 @@ def display_insights(in_sample, out_sample):
     else:
         st.warning("⚖️ Both strategies have trade-offs in the Out-of-Sample test. You may prefer **HRP** for slightly lower risk or **MVP** for better returns.")
 
+
+def recommend_stocks(weights_df, strategy_name="HRP", threshold=0.005, tickers={}):
+
+    if strategy_name not in weights_df.columns:
+        st.error(f"Strategy '{strategy_name}' not found in weights.")
+        return
+
+    # Extract weights for the selected strategy
+    strategy_weights = weights_df[strategy_name]
+
+    # Filter out stocks with zero or near-zero allocation
+    selected = strategy_weights[strategy_weights > threshold].sort_values(ascending=False)
+
+    if selected.empty:
+        st.warning("No stocks received significant allocation in this portfolio.")
+        return
+
+
+    # Convert to DataFrame and reset index
+    df = selected.rename("Allocation").to_frame().reset_index()
+
+    # Rename the column that was previously the index (usually called 0 or the ticker code)
+    df.columns = ["Ticker", "Allocation"]
+
+    # Add Stock Name column
+    df["Stock Name"] = df["Ticker"].map(lambda ticker: tickers.get(ticker, ticker))
+
+    # Reorder columns
+    df = df[["Ticker", "Stock Name", "Allocation"]]
+
+    # Display without index
+    st.dataframe(df.style.hide(axis="index").format({"Allocation": "{:.2%}"}), hide_index=True)
+
+    # Human summary
+    st.markdown("##### Summary")
+    st.write(f"You can invest in the following {len(selected)} stocks under the **{strategy_name}** strategy:")
+    for stock, weight in selected.items():
+        stock_name = tickers.get(stock, stock) # fallback to ticker if name not found
+        st.write(f"- **{stock_name}**: {weight:.2%} of your portfolio")
+
+    total_allocation = selected.sum()
+    if total_allocation < 0.99:
+        st.info(f"⚠️ Total allocation is only {total_allocation:.2%}. Consider reviewing the model or adding more investable assets.")

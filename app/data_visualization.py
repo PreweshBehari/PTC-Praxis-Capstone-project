@@ -28,10 +28,11 @@ def create_heatmap(df, topn=10):
         zmin=-1, zmax=1
     )
 
-    # Stretch the plot to fill the window
+    # Increase the size of the plot
     fig.update_layout(
-        autosize=True,
-        margin=dict(l=0, r=0, t=50, b=0),  # optional: reduce whitespace
+        width=900,  # Adjust width
+        height=900,  # Adjust height
+        margin=dict(l=0, r=0, t=50, b=0)
     )
 
     # Display in Streamlit

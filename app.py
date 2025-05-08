@@ -22,6 +22,7 @@ from app.data_visualization import (
 from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
+from app.portfolio_insights import display_insights
 from app.utils import create_unique_value, human_readable_date
 
 
@@ -314,23 +315,27 @@ try:
         ### In Sample and Out of Sample Results
         st.subheader("6.2 In Sample and Out of Sample Results")
 
-        # In Sample Results
-        st.write("In Sample Results")
+        # # In Sample Results
+        # st.write("In Sample Results")
 
         # Calculate in sample results
         insample_results = calculate_sample_metrics(in_sample_result)
 
-        # View the in-sample results
-        st.write(insample_results)
+        # # View the in-sample results
+        # st.write(insample_results)
 
-        # Out of Sample Results
-        st.write("Out of Sample Results")
+        # # Out of Sample Results
+        # st.write("Out of Sample Results")
 
         # Calculate out of sample results
         outsample_results = calculate_sample_metrics(out_of_sample_result)
 
-        # View the out-sample results
-        st.write(outsample_results)
+        # # View the out-sample results
+        # st.write(outsample_results)
+
+
+        # Call this in your Streamlit app
+        display_insights(insample_results, outsample_results)
 
 except Exception as e:
     st.error(f"Error: {str(e)}")

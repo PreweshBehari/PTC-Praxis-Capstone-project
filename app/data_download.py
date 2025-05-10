@@ -26,6 +26,10 @@ def get_tickers(save_path="data/tickers.json"):
     Returns:
         dict: A dictionary where keys are ticker symbols (str) and values are company names (str).
     """
+    # Use an absolute path relative to the current script
+    save_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+    save_path = os.path.join(save_dir, "tickers.json")
+
     # If the JSON file already exists, load and return it
     if os.path.exists(save_path):
         with open(save_path, 'r') as f:
@@ -41,6 +45,9 @@ def get_tickers(save_path="data/tickers.json"):
 
     # Replace dots with dashes in ticker symbols for Yahoo Finance compatibility (e.g., BRK.B -> BRK-B)
     tickers = {code.replace('.', '-'): name for code, name in zip(ticker_codes, ticker_names)}
+
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     # Save the processed tickers to a local JSON file
     with open(save_path, 'w') as f:

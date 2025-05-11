@@ -4,6 +4,14 @@
 - [1. Introduction](#1-introduction)
 - [2. Project Features](#2-project-features)
 - [3. Project Structure](#3-project-structure)
+  - [3.1 App Module Explained](#31-app-module-explained)
+    - [3.1.1 data_download.py](#311-data_downloadpy)
+    - [3.1.2 data_preparation.py](#312-data_preparationpy)
+    - [3.1.3 data_transformation.py](#313-data_transformationpy)
+    - [3.1.4 data_visualization.py](#314-data_visualizationpy)
+    - [3.1.5 optimizer.py](#315-optimizerpy)
+    - [3.1.6 portfolio_insights.py](#316-portfolio_insightspy)
+    - [3.1.7 utils.py](#317-utilspy)
 - [4. Local Setup](#4-local-setup)
   - [4.1 Prerequisites](#41-prerequisites)
   - [4.2 Clone the Repository](#42-clone-the-repository)
@@ -54,7 +62,7 @@ The goal is to evaluate how traditional optimization compares to a more modern, 
 ├── requirements.txt              # Python dependencies
 ```
 
-### 3.1 App Module
+### 3.1 App Module Explained
 
 #### 3.1.1 data_download.py
 

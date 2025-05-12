@@ -10,6 +10,8 @@ import numpy as np
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
+from collections import OrderedDict
+
 from scipy.cluster.hierarchy import linkage
 
 from app.optimizer import correlDist, build_portfolios, calculate_sample_metrics
@@ -23,7 +25,7 @@ from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
 from app.portfolio_insights import display_insights, recommend_stocks
-from app.utils import create_unique_value, human_readable_date
+from app.utils import create_unique_value, human_readable_date, get_sp500_spy_etf
 
 
 ##########################################################################################
@@ -55,11 +57,26 @@ start_date_obj = date_today_obj - relativedelta(years=5)
 start_date = start_date_obj.strftime("%Y-%m-%d")
 end_date = date_today_obj.strftime("%Y-%m-%d")
 
-# Get Tickers
+# Fetch the top N tickers, company names, and weights from the SPY ETF via Slickcharts.
+# These represent the largest S&P 500 constituents by free-float market capitalization.
+tickers_with_highest_weights = get_sp500_spy_etf()
+
+# Retrieve a broader set of S&P 500 tickers and company names from the Wikipedia page.
 tickers_dict = get_tickers()
 
+# Merge both dictionaries while preserving order:
+# - Ensure tickers from Slickcharts (top-weighted) appear first.
+# - Avoid duplicates by excluding any keys from the Wikipedia data already present in the top-weighted list.
+if tickers_with_highest_weights:
+    merged_tickers_dict = OrderedDict()
+    merged_tickers_dict.update(tickers_with_highest_weights)
+    merged_tickers_dict.update({k: v for k, v in tickers_dict.items() if k not in merged_tickers_dict})
+else:
+    # Fall back to using only Wikipedia data if the Slickcharts request failed or returned empty.
+    merged_tickers_dict = tickers_dict
+
 # Create mapping: name -> ticker
-name_to_ticker = {name: ticker for ticker, name in tickers_dict.items()}
+name_to_ticker = {name: ticker for ticker, name in merged_tickers_dict.items()}
 
 # List of names to display
 stock_names = list(name_to_ticker.keys())
@@ -131,7 +148,7 @@ elif st.session_state.mode == 'download':
     st.subheader(f"Downloading Stock Prices ({human_readable_date(start_date)} - {human_readable_date(end_date)})")
 
     # Download stock prices for the selected stocks
-    close_prices_data = download_close_prices(selected_tickers, start_date, end_date, tickers_dict)
+    close_prices_data = download_close_prices(selected_tickers, start_date, end_date, merged_tickers_dict)
 
     # Keep only the second level of column MultiIndex (named 'Ticker')
     close_prices_data.columns = close_prices_data.columns.get_level_values('Ticker')
@@ -353,11 +370,11 @@ try:
 
         # Using HRP Strategy
         st.markdown(f"#### Recommended Stocks – HRP Strategy")
-        recommend_stocks(portfolios, strategy_name="HRP", threshold=threshold/100, tickers=tickers_dict)
+        recommend_stocks(portfolios, strategy_name="HRP", threshold=threshold/100, tickers=merged_tickers_dict)
 
         # Using MVP Strategy
         st.markdown(f"#### Recommended Stocks – MVP Strategy")
-        recommend_stocks(portfolios, strategy_name="MVP", threshold=threshold/100, tickers=tickers_dict)
+        recommend_stocks(portfolios, strategy_name="MVP", threshold=threshold/100, tickers=merged_tickers_dict)
 
 except Exception as e:
     st.error(f"Error: {str(e)}")

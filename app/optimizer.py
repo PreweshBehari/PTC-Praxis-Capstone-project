@@ -201,7 +201,30 @@ def getRecBipart(cov, sortIx):
 ##########################################################################################
 
 def getMVP(returns):
+    """
+    Calculate the Minimum Variance Portfolio (MVP) weights using quadratic programming.
 
+    This function computes the efficient frontier and determines the minimum variance portfolio 
+    using the covariance matrix of asset returns. It applies convex optimization (quadratic programming)
+    to solve for portfolio weights under the constraint that all weights sum to 1 and are non-negative 
+    (i.e., no short-selling).
+
+    Parameters:
+    -----------
+    returns : pandas.DataFrame
+        A DataFrame where each column represents the historical returns of a different asset.
+
+    Returns:
+    --------
+    list
+        A list of optimal weights for each asset in the portfolio, representing the Minimum Variance Portfolio.
+    
+    Notes:
+    ------
+    - Uses the `cvxopt` library for solving the quadratic programming problem.
+    - Assumes equal expected returns for all assets (as a simplification).
+    - No short selling is allowed (weights >= 0).
+    """
     cov = returns.cov().T.values
     n = len(cov)
     N = 100
@@ -209,8 +232,7 @@ def getMVP(returns):
 
     # Convert to cvxopt matrices
     S = opt.matrix(cov)
-    # pbar = opt.matrix(returns.mean().values)
-    pbar = opt.matrix(np.ones(cov.shape[0]))
+    pbar = opt.matrix(np.ones(cov.shape[0]))  # Assumes equal expected return for all assets
 
     # Create constraint matrices
     G = -opt.matrix(np.eye(n))  # negative n x n identity matrix
@@ -220,18 +242,17 @@ def getMVP(returns):
 
     # Calculate efficient frontier weights using quadratic programming
     solvers.options['show_progress'] = False
-    portfolios = [solvers.qp(mu * S, -pbar, G, h, A, b)['x']
-                  for mu in mus]
+    portfolios = [solvers.qp(mu * S, -pbar, G, h, A, b)['x'] for mu in mus]
 
-    ## CALCULATE RISKS AND RETURNS FOR FRONTIER
+    # Calculate risks and returns for frontier
     returns = [blas.dot(pbar, x) for x in portfolios]
     risks = [np.sqrt(blas.dot(x, S * x)) for x in portfolios]
 
-    ## CALCULATE THE 2ND DEGREE POLYNOMIAL OF THE FRONTIER CURVE
+    # Fit a 2nd degree polynomial to the frontier curve
     m1 = np.polyfit(returns, risks, 2)
     x1 = np.sqrt(m1[2] / m1[0])
 
-    # CALCULATE THE OPTIMAL PORTFOLIO
+    # Calculate the optimal minimum variance portfolio
     wt = solvers.qp(opt.matrix(x1 * S), -pbar, G, h, A, b)['x']
 
     return list(wt)

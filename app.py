@@ -196,6 +196,11 @@ try:
         else:
             st.error("No Stock Price data found.")
 
+        # Correct the Column Name
+        # The ticker for Berkshire Hathaway Class B is usually returned as 'BRK-B',
+        # but sometimes special characters like '-' are replaced with '.'.
+        close_prices_data.columns = [col.replace('.', '-') for col in close_prices_data.columns]
+
         # If 'Date' is a column, move it to the index
         if 'Date' in close_prices_data.columns:
             close_prices_data = close_prices_data.set_index('Date')

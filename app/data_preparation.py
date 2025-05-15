@@ -20,15 +20,15 @@ def drop_columns_with_excessive_missing_data(dataset, threshold=0.3):
     Returns:
       pd.DataFrame: The dataset with specified columns removed.
     """
-    st.subheader("Data Cleaning")
-
     # 1. Calculate the fraction of missing values for each column,
     # and sort the result in descending order (highest missing fraction first).
     missing_fractions = dataset.isnull().mean().sort_values(ascending=False)
 
     # 2. View the top 10 columns with the most missing values
-    st.write("Top 10 columns with missing values:")
-    st.write(missing_fractions.head(10))
+    missing_columns = missing_fractions[missing_fractions > 0]
+    if not missing_columns.empty:
+      st.write("Columns with missing values:")
+      st.write(missing_columns)
 
     # 3. Identify columns where more than 'threshold' fraction of data is missing
     drop_list = sorted(list(missing_fractions[missing_fractions > threshold].index))

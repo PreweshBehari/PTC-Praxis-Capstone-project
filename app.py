@@ -13,18 +13,23 @@ from dateutil.relativedelta import relativedelta
 from collections import OrderedDict
 
 from scipy.cluster.hierarchy import linkage
+from scipy.spatial.distance import squareform
 
-from app.optimizer import correlDist, build_portfolios, calculate_sample_metrics
+from app.optimizer import correlDist, build_portfolios, calculate_sample_metrics, simulate_random_portfolios
 from app.data_visualization import (
     create_heatmap,
     create_dendrogram,
     create_portfolios_piechart,
     create_in_and_out_sample_plots,
+    plot_efficient_frontier,
+    create_daily_returns_plot,
+    create_stock_price_evolved_plot,
 )
 from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
 from app.portfolio_insights import display_insights, recommend_stocks
+from app.efficient_frontier import get_efficient_portfolio
 from app.utils import create_unique_value, human_readable_date, get_sp500_spy_etf
 
 
@@ -139,6 +144,7 @@ elif st.session_state.mode == 'download':
     st.session_state.create_portfolio_clicked = False # Clear Clicked state
     st.session_state.user_uploaded_file = False
 
+    selected_tickers = list(tickers_dict.keys()) # All tickers
     combined_keys = f"{''.join(selected_ticker_names)}{start_date}-{end_date}"
     stock_price_file_unique_id = create_unique_value(combined_keys)
 
@@ -179,13 +185,29 @@ try:
         else:
             st.error("No Stock Price data found.")
 
-        # EDA
-        st.header("2. Exploratory Data Analysis")
-
         # If 'Date' is a column, move it to the index
         if 'Date' in close_prices_data.columns:
             close_prices_data = close_prices_data.set_index('Date')
-            
+
+        # Get Efficient portfolios
+        effecient_portfolio = get_efficient_portfolio(close_prices_data, merged_tickers_dict, 30)
+
+        if effecient_portfolio:
+            # Convert to DataFrame
+            df_effecient_portfolio = pd.DataFrame.from_dict(effecient_portfolio, orient='index')
+            df_effecient_portfolio.index.name = 'ticker'
+            df_effecient_portfolio.reset_index(inplace=True)
+
+            st.write("Efficient Portfolios:")
+            st.write(df_effecient_portfolio)
+            # print(df_effecient_portfolio['weight'].sum())
+
+            # Select efficient portfolio tickers
+            close_prices_data = close_prices_data[list(effecient_portfolio.keys())]
+   
+        # EDA
+        st.header("2. Exploratory Data Analysis")
+
         # Data Overview
         # Display the first 5 rows
         st.write("Displaying few rows:")
@@ -199,6 +221,19 @@ try:
         # Create Heatmap
         create_heatmap(close_prices_data, topn=30)
 
+        # Show how Stock price evolved for each stock
+        st.markdown("#### Stock price evolving over time")
+        create_stock_price_evolved_plot(close_prices_data, tickers_dict)
+
+        # Calculate percentage return for dataset and plot daily returns
+        st.markdown("#### Daily Returns")
+        returns = close_prices_data.pct_change().dropna()
+        create_daily_returns_plot(returns, tickers_dict)
+
+        st.markdown("#### Efficient Frontier")
+        results, sdp, rp, sdp_min, rp_min = simulate_random_portfolios(returns)
+        plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min)
+
         st.header("3. Data Preparation")
         # Checking for missing values and remove the missing values
         st.write("Check for missing values in the dataset")
@@ -206,13 +241,22 @@ try:
 
         if any_missing_values:
             st.warning("There are missing values.")
+            # Display columns with missing values (i.e., sum > 0)
+            missing_values = close_prices_data.isnull().sum()
+            st.write(missing_values[missing_values > 0])
 
-            # Fill the missing values with the last value available in the dataset.
-            # forward-fills missing values (uses the last known value to fill in gaps).
+            st.subheader("Data Cleaning")
+
+            # First, fill missing values using forward fill (ffill) and backward fill (bfill).
+            # This step uses nearby known values to fill in gaps, helping preserve columns with minor missing data.
             close_prices_data.ffill(inplace=True)
+            close_prices_data.bfill(inplace=True)
 
-            # Remove any columns (stocks) that still have missing values after forward fill.
-            close_prices_data = drop_columns_with_excessive_missing_data(close_prices_data)
+            st.write("Used forward fill (ffill) and backward fill (bfill) to fill missing values." \
+            "This step uses nearby known values to fill in gaps, helping preserve columns with minor missing data.")
+
+            # Then, drop any columns that still contain missing values after both fills.
+            close_prices_data = drop_columns_with_excessive_missing_data(close_prices_data, threshold=0.3)
 
             # Double Checking for missing values
             if close_prices_data.isnull().values.any():
@@ -269,7 +313,8 @@ try:
 
         # Perform hierarchical clustering (linkage) using the Ward linkage method on the distance matrix
         # Ward’s method tries to minimize the variance within clusters at each step.
-        link = linkage(dist, 'ward')
+        condensed_dist = squareform(dist) # convert to condensed form
+        link = linkage(condensed_dist, 'ward')
 
         # Show the first linkage step
         st.write("Show the first linkage step")

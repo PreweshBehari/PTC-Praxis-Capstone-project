@@ -13,6 +13,8 @@ from scipy.spatial.distance import squareform
 import cvxopt as opt
 from cvxopt import blas, solvers
 
+from app.data_visualization import create_efficient_frontier_plot
+
 
 ##########################################################################################
 # Optimizing Methods
@@ -42,6 +44,9 @@ def correlDist(corr):
 
     return dist
 
+##########################################################################################
+# HRP Optimizing Methods
+##########################################################################################
 
 def getQuasiDiag(link):
     """
@@ -101,7 +106,7 @@ def getQuasiDiag(link):
 
 def getIVP(cov, **kargs):
     """
-    Compute the Inverse-Variance Portfolio (IVP) weights.
+    Recursive bisection: Compute the Inverse-Variance Portfolio (IVP) weights.
 
     In an IVP, assets with lower variance (more stable) get higher weights.
     This method assumes no correlation between assets (only variance matters).
@@ -120,7 +125,6 @@ def getIVP(cov, **kargs):
     ivp /= ivp.sum()
 
     return ivp
-
 
 def getClusterVar(cov, cItems):
     """
@@ -143,7 +147,6 @@ def getClusterVar(cov, cItems):
     cVar = np.dot(np.dot(w_.T, cov_), w_)[0, 0]
 
     return cVar
-
 
 def getRecBipart(cov, sortIx):
     """
@@ -193,18 +196,22 @@ def getRecBipart(cov, sortIx):
 
     return w
 
+##########################################################################################
+# General Optimizing Methods
+##########################################################################################
 
-def getMVP(cov):
+def getMVP(returns):
 
-    cov = cov.T.values
+    cov = returns.cov().T.values
     n = len(cov)
     N = 100
     mus = [10 ** (5.0 * t / N - 1.0) for t in range(N)]
 
     # Convert to cvxopt matrices
     S = opt.matrix(cov)
-    #pbar = opt.matrix(np.mean(returns, axis=1))
-    pbar = opt.matrix(np.ones(cov.shape[0]))
+    # TODO: check pbar
+    pbar = opt.matrix(returns.mean().values)
+    # pbar = opt.matrix(np.ones(cov.shape[0]))
 
     # Create constraint matrices
     G = -opt.matrix(np.eye(n))  # negative n x n identity matrix
@@ -216,14 +223,20 @@ def getMVP(cov):
     solvers.options['show_progress'] = False
     portfolios = [solvers.qp(mu * S, -pbar, G, h, A, b)['x']
                   for mu in mus]
+
     ## CALCULATE RISKS AND RETURNS FOR FRONTIER
     returns = [blas.dot(pbar, x) for x in portfolios]
     risks = [np.sqrt(blas.dot(x, S * x)) for x in portfolios]
+
     ## CALCULATE THE 2ND DEGREE POLYNOMIAL OF THE FRONTIER CURVE
     m1 = np.polyfit(returns, risks, 2)
     x1 = np.sqrt(m1[2] / m1[0])
+
     # CALCULATE THE OPTIMAL PORTFOLIO
     wt = solvers.qp(opt.matrix(x1 * S), -pbar, G, h, A, b)['x']
+
+    # Plotting
+    create_efficient_frontier_plot(risks, returns)
 
     return list(wt)
 
@@ -267,7 +280,7 @@ def build_portfolios(returns):
     hrp = getHRP(cov, corr)
 
     # Step 3: Compute the MVP portfolio weights
-    mvp = getMVP(cov)
+    mvp = getMVP(returns)
 
     # Step 4: Convert MVP weights to a Pandas Series with asset names as index
     mvp = pd.Series(mvp, index=cov.index)
@@ -280,8 +293,6 @@ def build_portfolios(returns):
 
     return portfolios
 
-
-# General Method
 def calculate_sample_metrics(returns, trading_days=252):
     """
     Calculate and return annualized standard deviation (risk) and Sharpe ratio
@@ -302,6 +313,37 @@ def calculate_sample_metrics(returns, trading_days=252):
     sharp_ratio = (returns.mean() * np.sqrt(trading_days)) / (returns.std())
 
     # Create a results table
-    Results = pd.DataFrame(dict(stdev=stddev, sharp_ratio=sharp_ratio))
+    results = pd.DataFrame(dict(stdev=stddev, sharp_ratio=sharp_ratio))
 
-    return Results
+    return results
+
+def simulate_random_portfolios(returns, num_portfolios=5000, risk_free_rate=0.0):
+    np.random.seed(42)
+    mean_returns = returns.mean() * 252  # Annualize
+    cov_matrix = returns.cov() * 252     # Annualize
+
+    num_assets = len(mean_returns)
+    results = np.zeros((3, num_portfolios))
+    weights_record = []
+
+    for i in range(num_portfolios):
+        weights = np.random.random(num_assets)
+        weights /= np.sum(weights)
+        weights_record.append(weights)
+
+        portfolio_return = np.dot(weights, mean_returns)
+        portfolio_std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_std_dev
+
+        results[0, i] = portfolio_std_dev # volatility
+        results[1, i] = portfolio_return  # return
+        results[2, i] = sharpe_ratio      # sharpe
+
+    # Identify max Sharpe and min Volatility
+    max_sharpe_idx = np.argmax(results[2])
+    sdp, rp = results[0, max_sharpe_idx], results[1, max_sharpe_idx]
+
+    min_vol_idx = np.argmin(results[0])
+    sdp_min, rp_min = results[0, min_vol_idx], results[1, min_vol_idx]
+
+    return results, sdp, rp, sdp_min, rp_min

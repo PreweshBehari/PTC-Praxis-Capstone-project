@@ -298,6 +298,16 @@ try:
         X_train = X.head(train_len) # First N rows
         X_test = X.tail(len(X) - train_len) # Remaining rows
 
+        # Get Minimum and maximum date
+        # Use DataFrame index, because Date is index
+        train_max_date = X_train.index.max()
+        train_min_date = X_train.index.min()
+        test_max_date = X_test.index.max()
+        test_min_date = X_test.index.min()
+
+        st.write(f"Train length: {train_len}, Minimum date: {train_min_date}, Maximum date: {train_max_date}")
+        st.write(f"Test length: {len(X) - train_len}, Minimum date: {test_min_date}, Maximum date: {test_max_date}")
+
         # Calculate percentage return for training set
         returns = X_train.pct_change().dropna()
 
@@ -376,6 +386,13 @@ try:
         # Build Portfolios
         portfolios = build_portfolios(returns)
 
+        st.markdown("#### Portfolio Weights Allocation")
+        portfolios_tmp = portfolios.round(4) # Round portfolio weights to 4 decimal places
+        # portfolios_tmp['Name'] = portfolios_tmp.index.map(tickers_dict) # Add a column for company names based on ticker
+        # Create Name column based on ticker mapping
+        portfolios_tmp.insert(loc=0, column='Name', value=portfolios_tmp.index.map(tickers_dict))
+        st.write(portfolios_tmp)
+
         # Visualize portfolios
         create_portfolios_piechart(portfolios)
 
@@ -386,6 +403,13 @@ try:
 
         # Compute portfolio returns in-sample and out-of-sample
         st.subheader("6.1 In Sample and Out of Sample Results")
+
+        def calculate_metrics(returns, risk_free_rate=0.0):
+            """Compute annual return, volatility, and Sharpe ratio from daily returns."""
+            mean_return = returns.mean() * 252  # Annualized return
+            volatility = returns.std() * np.sqrt(252)  # Annualized volatility
+            sharpe = (mean_return - risk_free_rate) / volatility  # Sharpe ratio
+            return mean_return, volatility, sharpe
 
         # In-sample: multiply asset returns by portfolio weights
         in_sample_result = pd.DataFrame(
@@ -400,6 +424,38 @@ try:
             columns=['MVP', 'HRP'],
             index=returns_test.index
         )
+
+        # Compute metrics for each portfolio
+        rows = []
+        for portfolio in ['MVP', 'HRP']:
+            # Training metrics
+            train_ret, train_vol, train_sharpe = calculate_metrics(in_sample_result[portfolio])
+            # Test metrics
+            test_ret, test_vol, test_sharpe = calculate_metrics(out_of_sample_result[portfolio])
+            
+            # Append a row to the summary table
+            rows.append([
+                portfolio,
+                round(train_ret * 100, 2),
+                round(train_vol * 100, 2),
+                round(train_sharpe, 4),
+                round(test_ret * 100, 2),
+                round(test_vol * 100, 2),
+                round(test_sharpe, 4)
+            ])
+
+        # Step 3: Build the summary DataFrame
+        sample_summary_df = pd.DataFrame(rows, columns=[
+            'Portfolio',
+            'Training Return (%)',
+            'Training Volatility (%)',
+            'Training Sharpe',
+            'Test Return (%)',
+            'Test Volatility (%)',
+            'Test Sharpe'
+        ])
+
+        st.write(sample_summary_df)
 
         # Create In and Out Sample Plots
         create_in_and_out_sample_plots(in_sample_result, out_of_sample_result)

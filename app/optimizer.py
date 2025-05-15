@@ -4,6 +4,7 @@
 # Load libraries
 import numpy as np
 import pandas as pd
+import streamlit as st
 
 # Import Model Packages
 import scipy.cluster.hierarchy as sch
@@ -13,8 +14,7 @@ from scipy.spatial.distance import squareform
 import cvxopt as opt
 from cvxopt import blas, solvers
 
-from app.data_visualization import create_efficient_frontier_plot
-
+import scipy.optimize as sco
 
 ##########################################################################################
 # Optimizing Methods
@@ -209,9 +209,8 @@ def getMVP(returns):
 
     # Convert to cvxopt matrices
     S = opt.matrix(cov)
-    # TODO: check pbar
-    pbar = opt.matrix(returns.mean().values)
-    # pbar = opt.matrix(np.ones(cov.shape[0]))
+    # pbar = opt.matrix(returns.mean().values)
+    pbar = opt.matrix(np.ones(cov.shape[0]))
 
     # Create constraint matrices
     G = -opt.matrix(np.eye(n))  # negative n x n identity matrix
@@ -234,9 +233,6 @@ def getMVP(returns):
 
     # CALCULATE THE OPTIMAL PORTFOLIO
     wt = solvers.qp(opt.matrix(x1 * S), -pbar, G, h, A, b)['x']
-
-    # Plotting
-    create_efficient_frontier_plot(risks, returns)
 
     return list(wt)
 
@@ -317,10 +313,10 @@ def calculate_sample_metrics(returns, trading_days=252):
 
     return results
 
-def simulate_random_portfolios(returns, num_portfolios=5000, risk_free_rate=0.0):
+def simulate_random_portfolios(returns, num_portfolios=5000, risk_free_rate=0.0, trading_days=252):
     np.random.seed(42)
-    mean_returns = returns.mean() * 252  # Annualize
-    cov_matrix = returns.cov() * 252     # Annualize
+    mean_returns = returns.mean() * trading_days  # Annualize
+    cov_matrix = returns.cov() * trading_days     # Annualize
 
     num_assets = len(mean_returns)
     results = np.zeros((3, num_portfolios))
@@ -347,3 +343,150 @@ def simulate_random_portfolios(returns, num_portfolios=5000, risk_free_rate=0.0)
     sdp_min, rp_min = results[0, min_vol_idx], results[1, min_vol_idx]
 
     return results, sdp, rp, sdp_min, rp_min
+
+def portfolio_annualised_performance(weights, mean_returns, cov_matrix, trading_days=252):
+    returns = np.sum(mean_returns*weights ) * trading_days
+    std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(trading_days)
+    return std, returns
+
+def simulate_random_portfolios2(returns, num_portfolios=5000, risk_free_rate=0.0):
+    mean_returns = returns.mean()
+    cov_matrix = returns.cov()
+    num_assets = len(mean_returns) # number of assets
+    results = np.zeros((3, num_portfolios))
+    weights_record = []
+
+    for i in range(num_portfolios):
+        weights = np.random.random(num_assets)
+        weights /= np.sum(weights)
+        weights_record.append(weights)
+        portfolio_std_dev, portfolio_return = portfolio_annualised_performance(weights, mean_returns, cov_matrix)
+        results[0, i] = portfolio_std_dev
+        results[1, i] = portfolio_return
+        results[2, i] = (portfolio_return - risk_free_rate) / portfolio_std_dev
+
+    return results, weights_record
+
+
+
+
+
+def neg_sharpe_ratio(weights, mean_returns, cov_matrix, risk_free_rate):
+    p_var, p_ret = portfolio_annualised_performance(weights, mean_returns, cov_matrix)
+    return -(p_ret - risk_free_rate) / p_var
+
+def max_sharpe_ratio(mean_returns, cov_matrix, risk_free_rate):
+    num_assets = len(mean_returns)
+    args = (mean_returns, cov_matrix, risk_free_rate)
+    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    bound = (0.0,1.0)
+    bounds = tuple(bound for asset in range(num_assets))
+    result = sco.minimize(neg_sharpe_ratio, num_assets*[1./num_assets,], args=args,
+                        method='SLSQP', bounds=bounds, constraints=constraints)
+    return result
+
+def portfolio_volatility(weights, mean_returns, cov_matrix):
+    return portfolio_annualised_performance(weights, mean_returns, cov_matrix)[0]
+
+def min_variance(mean_returns, cov_matrix):
+    num_assets = len(mean_returns)
+    args = (mean_returns, cov_matrix)
+    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    bound = (0.0,1.0)
+    bounds = tuple(bound for asset in range(num_assets))
+
+    result = sco.minimize(portfolio_volatility, num_assets*[1./num_assets,], args=args,
+                        method='SLSQP', bounds=bounds, constraints=constraints)
+
+    return result
+
+def efficient_return(mean_returns, cov_matrix, target):
+    num_assets = len(mean_returns)
+    args = (mean_returns, cov_matrix)
+
+    def portfolio_return(weights):
+        return portfolio_annualised_performance(weights, mean_returns, cov_matrix)[1]
+
+    constraints = ({'type': 'eq', 'fun': lambda x: portfolio_return(x) - target},
+                   {'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    bounds = tuple((0,1) for asset in range(num_assets))
+    result = sco.minimize(portfolio_volatility, num_assets*[1./num_assets,], args=args, method='SLSQP', bounds=bounds, constraints=constraints)
+    return result
+
+
+def efficient_frontier(mean_returns, cov_matrix, returns_range):
+    efficients = []
+    for ret in returns_range:
+        efficients.append(efficient_return(mean_returns, cov_matrix, ret))
+    return efficients
+
+def display_ef_with_selected(returns, tickers_dict, risk_free_rate=0.0):
+    mean_returns = returns.mean()
+    cov_matrix = returns.cov()
+
+    max_sharpe = max_sharpe_ratio(mean_returns, cov_matrix, risk_free_rate)
+    sdp, rp = portfolio_annualised_performance(max_sharpe['x'], mean_returns, cov_matrix)
+    max_sharpe_allocation = pd.DataFrame(max_sharpe.x,index=returns.columns,columns=['allocation'])
+    max_sharpe_allocation.allocation = [round(i*100,2)for i in max_sharpe_allocation.allocation]
+    max_sharpe_allocation = max_sharpe_allocation.T
+    max_sharpe_allocation
+
+    min_vol = min_variance(mean_returns, cov_matrix)
+    sdp_min, rp_min = portfolio_annualised_performance(min_vol['x'], mean_returns, cov_matrix)
+    min_vol_allocation = pd.DataFrame(min_vol.x,index=returns.columns,columns=['allocation'])
+    min_vol_allocation.allocation = [round(i*100,2)for i in min_vol_allocation.allocation]
+    min_vol_allocation = min_vol_allocation.T
+    
+    an_vol = np.std(returns) * np.sqrt(252)
+    an_rt = mean_returns * 252
+
+    st.markdown("##### Maximum Sharpe Ratio Portfolio Allocation")
+    st.write(f"Annualised Return: {round(rp, 2)}")
+    st.write(f"Annualised Volatility: {round(sdp,2)}")
+
+    # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
+    long_max_sharpe_allocation = max_sharpe_allocation.T.reset_index()
+    long_max_sharpe_allocation.columns = ['Stock', 'Allocation']
+    # Insert 'Name' column before 'Allocation'
+    long_max_sharpe_allocation.insert(
+        loc=1,  # position index to insert before 'Allocation'
+        column='Name',
+        value=long_max_sharpe_allocation['Stock'].map(tickers_dict)
+    )
+
+    st.write(long_max_sharpe_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
+
+    st.markdown("##### Minimum Volatility Portfolio Allocation")
+    st.write(f"Annualised Return: {round(rp_min, 2)}")
+    st.write(f"Annualised Volatility: {round(sdp_min,2)}")
+
+    # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
+    long_min_vol_allocation= min_vol_allocation.T.reset_index()
+    long_min_vol_allocation.columns = ['Stock', 'Allocation']
+    # Insert 'Name' column before 'Allocation'
+    long_min_vol_allocation.insert(
+        loc=1,  # position index to insert before 'Allocation'
+        column='Name',
+        value=long_min_vol_allocation['Stock'].map(tickers_dict)
+    )
+    st.write(long_min_vol_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
+
+    st.markdown("##### Individual Stock Returns and Volatility")
+
+    # Create a list of dictionaries to hold the data
+    data = []
+    for i, txt in enumerate(returns.columns):
+        data.append({
+            "Stock": txt,
+            "Name": tickers_dict.get(txt, txt),
+            "Annualised Return": round(an_rt.iloc[i], 2),
+            "Annualised Volatility": round(an_vol.iloc[i], 2)
+        })
+
+    # Convert to DataFrame
+    summary_df = pd.DataFrame(data)
+
+    # Show in Streamlit
+    st.dataframe(summary_df.sort_values(by="Annualised Return", ascending=False).reset_index(drop=True))
+
+    return an_vol, an_rt, returns, sdp, rp, sdp_min, rp_min, mean_returns, cov_matrix

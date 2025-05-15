@@ -15,15 +15,26 @@ from collections import OrderedDict
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import squareform
 
-from app.optimizer import correlDist, build_portfolios, calculate_sample_metrics, simulate_random_portfolios
+# import app.mvp_optimizer as mvp_opt
+from app.optimizer import (
+    correlDist,
+    build_portfolios,
+    calculate_sample_metrics,
+    simulate_random_portfolios,
+    simulate_random_portfolios2,
+    display_ef_with_selected,
+    efficient_frontier,
+)
 from app.data_visualization import (
     create_heatmap,
     create_dendrogram,
     create_portfolios_piechart,
     create_in_and_out_sample_plots,
     plot_efficient_frontier,
+    plot_efficient_frontier2,
     create_daily_returns_plot,
     create_stock_price_evolved_plot,
+    create_portfolio_optimization_plot,
 )
 from app.data_preparation import drop_columns_with_excessive_missing_data
 from app.data_download import get_tickers, download_close_prices
@@ -144,8 +155,8 @@ elif st.session_state.mode == 'download':
     st.session_state.create_portfolio_clicked = False # Clear Clicked state
     st.session_state.user_uploaded_file = False
 
-    selected_tickers = list(tickers_dict.keys()) # All tickers
-    combined_keys = f"{''.join(selected_ticker_names)}{start_date}-{end_date}"
+    # selected_tickers = list(tickers_dict.keys()) # All tickers
+    combined_keys = f"{''.join(selected_tickers)}{start_date}-{end_date}"
     stock_price_file_unique_id = create_unique_value(combined_keys)
 
     stock_price_file = f"data/stock_prices_{stock_price_file_unique_id}.csv"
@@ -189,21 +200,8 @@ try:
         if 'Date' in close_prices_data.columns:
             close_prices_data = close_prices_data.set_index('Date')
 
-        # Get Efficient portfolios
-        effecient_portfolio = get_efficient_portfolio(close_prices_data, merged_tickers_dict, 30)
-
-        if effecient_portfolio:
-            # Convert to DataFrame
-            df_effecient_portfolio = pd.DataFrame.from_dict(effecient_portfolio, orient='index')
-            df_effecient_portfolio.index.name = 'ticker'
-            df_effecient_portfolio.reset_index(inplace=True)
-
-            st.write("Efficient Portfolios:")
-            st.write(df_effecient_portfolio)
-            # print(df_effecient_portfolio['weight'].sum())
-
-            # Select efficient portfolio tickers
-            close_prices_data = close_prices_data[list(effecient_portfolio.keys())]
+        # Select the data of the selected tickers only
+        close_prices_data = close_prices_data[selected_tickers]
    
         # EDA
         st.header("2. Exploratory Data Analysis")
@@ -223,16 +221,31 @@ try:
 
         # Show how Stock price evolved for each stock
         st.markdown("#### Stock price evolving over time")
+        st.write("Let's first look at how the price of each stock has evolved within given time frame.")
         create_stock_price_evolved_plot(close_prices_data, tickers_dict)
 
         # Calculate percentage return for dataset and plot daily returns
         st.markdown("#### Daily Returns")
+        st.write("Another way to plot this is plotting daily returns (percent change compared to the day before). " \
+        "By plotting daily returns instead of actual prices, we can see the stocks' volatility.")
         returns = close_prices_data.pct_change().dropna()
         create_daily_returns_plot(returns, tickers_dict)
 
-        st.markdown("#### Efficient Frontier")
-        results, sdp, rp, sdp_min, rp_min = simulate_random_portfolios(returns)
-        plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min)
+        st.markdown("#### Random Portfolios Generation")
+
+        num_portfolios = 25000
+        risk_free_rate = 0.0178
+        # results, sdp, rp, sdp_min, rp_min = simulate_random_portfolios(returns, num_portfolios, risk_free_rate)
+        # plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min)
+
+        results, weights = simulate_random_portfolios2(returns, num_portfolios, risk_free_rate)
+        plot_efficient_frontier2(close_prices_data, results, weights, merged_tickers_dict)
+
+        st.markdown("#### Portfolio Optimization with Individual Stocks")
+        an_vol, an_rt, returns, sdp, rp, sdp_min, rp_min, mean_returns, cov_matrix = \
+            display_ef_with_selected(returns, tickers_dict, risk_free_rate)
+
+        create_portfolio_optimization_plot(an_vol, an_rt, returns, sdp, rp, sdp_min, rp_min, mean_returns, cov_matrix, efficient_frontier)
 
         st.header("3. Data Preparation")
         # Checking for missing values and remove the missing values
@@ -252,7 +265,7 @@ try:
             close_prices_data.ffill(inplace=True)
             close_prices_data.bfill(inplace=True)
 
-            st.write("Used forward fill (ffill) and backward fill (bfill) to fill missing values." \
+            st.write("Used forward fill (ffill) and backward fill (bfill) to fill missing values. " \
             "This step uses nearby known values to fill in gaps, helping preserve columns with minor missing data.")
 
             # Then, drop any columns that still contain missing values after both fills.

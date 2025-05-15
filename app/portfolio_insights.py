@@ -115,6 +115,7 @@ def recommend_stocks(weights_df, strategy_name="HRP", threshold=0.005, tickers={
         st.warning("No stocks received significant allocation in this portfolio.")
         return
 
+    st.write(f"You can invest in the following {len(selected)} stocks under the **{strategy_name}** strategy:")
 
     # Convert to DataFrame and reset index
     df = selected.rename("Allocation").to_frame().reset_index()
@@ -131,12 +132,12 @@ def recommend_stocks(weights_df, strategy_name="HRP", threshold=0.005, tickers={
     # Display without index
     st.dataframe(df.style.hide(axis="index").format({"Allocation": "{:.2%}"}), hide_index=True)
 
-    # Human summary
-    st.markdown("##### Summary")
-    st.write(f"You can invest in the following {len(selected)} stocks under the **{strategy_name}** strategy:")
-    for stock, weight in selected.items():
-        stock_name = tickers.get(stock, stock) # fallback to ticker if name not found
-        st.write(f"- **{stock_name}**: {weight:.2%} of your portfolio")
+    # # Human summary
+    # st.markdown("##### Summary")
+    # st.write(f"You can invest in the following {len(selected)} stocks under the **{strategy_name}** strategy:")
+    # for stock, weight in selected.items():
+    #     stock_name = tickers.get(stock, stock) # fallback to ticker if name not found
+    #     st.write(f"- **{stock_name}**: {weight:.2%} of your portfolio")
 
     total_allocation = selected.sum()
     if total_allocation < 0.99:

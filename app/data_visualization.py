@@ -2,6 +2,7 @@
 # Imports
 ##########################################################################################
 import numpy as np
+import pandas as pd
 import streamlit as st
 import plotly.express as px
 
@@ -96,6 +97,7 @@ def plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min):
 
     S = opt.matrix(cov)
     pbar = opt.matrix(returns.mean().values)
+    # pbar = opt.matrix(np.ones(cov.shape[0]))
 
     G = -opt.matrix(np.eye(n))
     h = opt.matrix(0.0, (n, 1))
@@ -114,8 +116,73 @@ def plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min):
     sc = ax.scatter(results[0, :], results[1, :], c=results[2, :], cmap='YlGnBu', marker='o', s=10, alpha=0.3)
     plt.colorbar(sc, ax=ax, label='Sharpe Ratio')
 
-    # Efficient frontier
-    ax.plot(risks, rets, 'g--', label='Efficient Frontier')
+    # # Efficient frontier
+    # ax.plot(risks, rets, 'g--', label='Efficient Frontier')
+
+    # Special portfolios
+    ax.scatter(sdp, rp, marker='*', color='r', s=500, label='Maximum Sharpe Ratio')
+    ax.scatter(sdp_min, rp_min, marker='*', color='g', s=500, label='Minimum Volatility')
+
+    ax.set_title('Simulated Portfolio Optimization based on Efficient Frontier')
+    ax.set_xlabel('Annualized Volatility')
+    ax.set_ylabel('Annualized Returns')
+    ax.legend(labelspacing=0.8)
+    ax.grid(True)
+
+    st.pyplot(fig)
+
+def plot_efficient_frontier2(table, results, weights, tickers_dict):
+    max_sharpe_idx = np.argmax(results[2])
+    sdp, rp = results[0,max_sharpe_idx], results[1,max_sharpe_idx]
+    max_sharpe_allocation = pd.DataFrame(weights[max_sharpe_idx],index=table.columns,columns=['allocation'])
+    max_sharpe_allocation.allocation = [round(i*100,2)for i in max_sharpe_allocation.allocation]
+    max_sharpe_allocation = max_sharpe_allocation.T
+    
+    min_vol_idx = np.argmin(results[0])
+    sdp_min, rp_min = results[0,min_vol_idx], results[1,min_vol_idx]
+    min_vol_allocation = pd.DataFrame(weights[min_vol_idx],index=table.columns,columns=['allocation'])
+    min_vol_allocation.allocation = [round(i*100,2)for i in min_vol_allocation.allocation]
+    min_vol_allocation = min_vol_allocation.T
+
+    st.markdown("##### Maximum Sharpe Ratio Portfolio Allocation")
+    st.write(f"Annualised Return: {round(rp, 2)}")
+    st.write(f"Annualised Volatility: {round(sdp,2)}")
+
+    # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
+    long_max_sharpe_allocation = max_sharpe_allocation.T.reset_index()
+    long_max_sharpe_allocation.columns = ['Stock', 'Allocation']
+    # Insert 'Name' column before 'Allocation'
+    long_max_sharpe_allocation.insert(
+        loc=1,  # position index to insert before 'Allocation'
+        column='Name',
+        value=long_max_sharpe_allocation['Stock'].map(tickers_dict)
+    )
+
+    st.write(long_max_sharpe_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
+    
+    st.markdown("##### Minimum Volatility Portfolio Allocation")
+    st.write(f"Annualised Return: {round(rp_min, 2)}")
+    st.write(f"Annualised Volatility: {round(sdp_min,2)}")
+
+    # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
+    long_min_vol_allocation= min_vol_allocation.T.reset_index()
+    long_min_vol_allocation.columns = ['Stock', 'Allocation']
+    # Insert 'Name' column before 'Allocation'
+    long_min_vol_allocation.insert(
+        loc=1,  # position index to insert before 'Allocation'
+        column='Name',
+        value=long_min_vol_allocation['Stock'].map(tickers_dict)
+    )
+    st.write(long_min_vol_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
+
+    st.markdown("#### Simulated Portfolio Optimization based on Efficient Frontier")
+
+    # Plotting in Streamlit
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # Simulated portfolios
+    sc = ax.scatter(results[0, :], results[1, :], c=results[2, :], cmap='YlGnBu', marker='o', s=10, alpha=0.3)
+    plt.colorbar(sc, ax=ax, label='Sharpe Ratio')
 
     # Special portfolios
     ax.scatter(sdp, rp, marker='*', color='r', s=500, label='Maximum Sharpe Ratio')
@@ -150,11 +217,42 @@ def create_daily_returns_plot(returns, tickers_dict):
 
     # Plot each time series
     for c in returns.columns.values:
-        ax.plot(returns.index, returns[c], lw=3, alpha=0.8, label=tickers_dict.get(c, c))
+        ax.plot(returns.index, returns[c], lw=3, alpha=0.85, label=tickers_dict.get(c, c))
 
     # Customize the plot
     ax.legend(loc='upper left', fontsize=8)
     ax.set_ylabel('Daily Returns')
 
     # Render in Streamlit
+    st.pyplot(fig)
+
+def create_portfolio_optimization_plot(an_vol, an_rt, returns, sdp, rp, sdp_min, rp_min, mean_returns, cov_matrix, efficient_frontier):
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # Scatter plot of individual stock portfolios
+    ax.scatter(an_vol, an_rt, marker='o', s=200)
+
+    # Add annotations for each stock
+    for i, txt in enumerate(returns.columns):
+        ax.annotate(txt, (an_vol.iloc[i], an_rt.iloc[i]), xytext=(10, 0), textcoords='offset points')
+
+    # Max Sharpe ratio portfolio
+    ax.scatter(sdp, rp, marker='*', color='r', s=500, label='Maximum Sharpe Ratio')
+
+    # Minimum volatility portfolio
+    ax.scatter(sdp_min, rp_min, marker='*', color='g', s=500, label='Minimum Volatility')
+
+    # Efficient frontier
+    target = np.linspace(rp_min, 0.8, 50)
+    # target = np.linspace(rp_min, 0.34, 50)
+    efficient_portfolios = efficient_frontier(mean_returns, cov_matrix, target)
+    ax.plot([p['fun'] for p in efficient_portfolios], target, linestyle='-.', color='black', label='Efficient Frontier')
+
+    # Labels and styling
+    ax.set_title('Portfolio Optimization with Individual Stocks')
+    ax.set_xlabel('Annualized Volatility (Risk)')
+    ax.set_ylabel('Annualized Returns')
+    ax.legend(labelspacing=0.8)
+    ax.grid(True)
+
     st.pyplot(fig)

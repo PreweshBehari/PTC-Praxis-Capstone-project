@@ -60,6 +60,10 @@ def get_sp500_spy_etf(topn=30):
         # Convert the weight column from string percentages to float
         df_data['Weight'] = df_data['Weight'].str.replace('%', '').astype(float)
 
+        # Replace dots with dashes in ticker symbols for Yahoo Finance compatibility (e.g., BRK.B -> BRK-B)
+        # Replace '.' with '-' in the Symbol column
+        df_data['Symbol'] = df_data['Symbol'].str.replace('.', '-', regex=False)
+
         # st.write(f"Top {topn} S&P 500 constituents by free-float market capitalization:")
         # st.write(df_data)
 

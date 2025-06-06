@@ -27,6 +27,7 @@ from app.optimizer import (
 )
 from app.data_visualization import (
     create_heatmap,
+    create_cov_heatmap,
     create_dendrogram,
     create_portfolios_piechart,
     create_in_and_out_sample_plots,
@@ -101,9 +102,20 @@ stock_names = list(name_to_ticker.keys())
 st.sidebar.header("Portfolio Settings")
 start_date = st.sidebar.date_input("Start Date", pd.to_datetime(start_date))
 end_date = st.sidebar.date_input("End Date", pd.to_datetime(end_date))
+
+# Add a slider for the risk-free rate
+risk_free_rate = st.sidebar.slider(
+    label="Select Risk-Free Rate (%)",
+    min_value=0.0,
+    max_value=10.0,
+    value=1.50, # Default value
+    step=0.01,
+    help="The risk-free rate is the return of a theoretically riskless investment, often based on government bonds like U.S. Treasury bills."
+)
+
 # Add a slider to configure the threshold
 threshold = st.sidebar.slider(
-    "Minimum allocation threshold (%)",
+    "Select Minimum allocation threshold (%)",
     min_value=0.0,
     max_value=30.0,
     value=0.5,
@@ -220,9 +232,22 @@ try:
         # buffer = io.StringIO()
         # close_prices_data.info(buf=buffer)
         # st.text(buffer.getvalue())
+
+        # Calculate returns
+        returns = close_prices_data.pct_change(fill_method=None).dropna()
             
         # Create Heatmap
+        st.subheader("Correlation Heatmap")
         create_heatmap(close_prices_data, topn=30)
+
+        # Covariance Matrix
+        st.subheader("Covariance Matrix of Returns")
+        cov_matrix = returns.cov()
+        st.dataframe(cov_matrix.style.format("{:.6f}"))
+
+        # Create Covariance Matrix Heatmap
+        st.subheader("Covariance Matrix Heatmap")
+        create_cov_heatmap(cov_matrix)
 
         # Show how Stock price evolved for each stock
         st.markdown("#### Stock price evolving over time")
@@ -233,20 +258,33 @@ try:
         st.markdown("#### Daily Returns")
         st.write("Another way to plot this is plotting daily returns (percent change compared to the day before). " \
         "By plotting daily returns instead of actual prices, we can see the stocks' volatility.")
-        returns = close_prices_data.pct_change().dropna()
         create_daily_returns_plot(returns, tickers_dict)
 
         st.markdown("#### Random Portfolios Generation")
 
         num_portfolios = 25000
-        risk_free_rate = 0.0178
         # results, sdp, rp, sdp_min, rp_min = simulate_random_portfolios(returns, num_portfolios, risk_free_rate)
         # plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min)
 
-        results, weights = simulate_random_portfolios2(returns, num_portfolios, risk_free_rate)
+        st.info("Here we generate 25,000 random portfolios by assigning random weights to each asset (ensuring the total allocation = 100%), " \
+        f" using a Risk-Free Rate of **{risk_free_rate:.2f} %**")
+
+        results, weights = simulate_random_portfolios2(returns, num_portfolios, risk_free_rate/100)
         plot_efficient_frontier2(close_prices_data, results, weights, merged_tickers_dict)
 
         st.markdown("#### Portfolio Optimization with Individual Stocks")
+    
+        st.info("""
+        In this section, we take the actual **individual stock returns** from your selected dataset and apply advanced optimization techniques to construct the **best possible portfolio**.
+
+        Rather than using pre-defined portfolios or ETFs, we build your investment mix from the ground up — choosing the **ideal combination of individual stocks** that either:
+
+        - **Maximize the Sharpe Ratio** (best return per unit of risk), or  
+        - **Minimize Volatility** (least amount of risk).
+
+        This gives a **tailored investment strategy** based on real stock behavior, helping you understand how to make the most efficient use of your capital.
+        """)
+
         an_vol, an_rt, returns, sdp, rp, sdp_min, rp_min, mean_returns, cov_matrix = \
             display_ef_with_selected(returns, tickers_dict, risk_free_rate)
 
@@ -305,17 +343,17 @@ try:
         test_max_date = X_test.index.max()
         test_min_date = X_test.index.min()
 
-        st.write(f"Train length: {train_len}, Minimum date: {train_min_date}, Maximum date: {train_max_date}")
-        st.write(f"Test length: {len(X) - train_len}, Minimum date: {test_min_date}, Maximum date: {test_max_date}")
+        st.info(f"Train size: {train_len}, Start date: {train_min_date}, End date: {train_max_date}")
+        st.info(f"Test size: {len(X) - train_len}, Start date: {test_min_date}, End date: {test_max_date}")
 
         # Calculate percentage return for training set
-        returns = X_train.pct_change().dropna()
+        returns = X_train.pct_change(fill_method=None).dropna()
 
         st.write("Displaying few Train returns:")
         st.write(returns.head())
 
         # Calculate percentage return for test set
-        returns_test = X_test.pct_change().dropna()
+        returns_test = X_test.pct_change(fill_method=None).dropna()
 
         st.write("Displaying few Test returns:")
         st.write(returns_test.head())
@@ -345,7 +383,7 @@ try:
         link = linkage(condensed_dist, 'ward')
 
         # Show the first linkage step
-        st.write("Show the first linkage step")
+        st.write("Showing the first linkage step")
         st.write(link[0])
 
         st.info("""
@@ -394,6 +432,7 @@ try:
         st.write(portfolios_tmp)
 
         # Visualize portfolios
+        st.markdown("#### Portfolio Weights Allocation Piechart")
         create_portfolios_piechart(portfolios)
 
         # 6. Backtesting-Out Of Sample
@@ -404,10 +443,12 @@ try:
         # Compute portfolio returns in-sample and out-of-sample
         st.subheader("6.1 In Sample and Out of Sample Results")
 
+        # st.info("")
+
         def calculate_metrics(returns, risk_free_rate=0.0):
             """Compute annual return, volatility, and Sharpe ratio from daily returns."""
             mean_return = returns.mean() * 252  # Annualized return
-            volatility = returns.std() * np.sqrt(252)  # Annualized volatility
+            volatility = returns.std(axis=0) * np.sqrt(252)  # Annualized volatility
             sharpe = (mean_return - risk_free_rate) / volatility  # Sharpe ratio
             return mean_return, volatility, sharpe
 
@@ -455,6 +496,7 @@ try:
             'Test Sharpe'
         ])
 
+        st.info("Computed metrics for each portfolio")
         st.write(sample_summary_df)
 
         # Create In and Out Sample Plots

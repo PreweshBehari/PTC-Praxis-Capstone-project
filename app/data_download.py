@@ -88,7 +88,7 @@ def download_close_prices(tickers, start_date="2020-01-01", end_date=None, ticke
         try:
             # Download the historical data
             data = yf.download(ticker, start=start_date, end=end_date,
-                               auto_adjust=True, progress=False, threads=True)
+                               auto_adjust=True, progress=False, threads=True, timeout=10)
 
             # Extract the 'Close' column and store it in the dictionary
             close_series = data['Close'].copy()

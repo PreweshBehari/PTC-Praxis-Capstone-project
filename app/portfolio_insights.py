@@ -96,7 +96,7 @@ def display_insights(in_sample, out_sample):
     if best_out_sample:
         st.success(f"✅ Based on Out-of-Sample performance, we recommend using the **{best_out_sample}** strategy — it has better risk-adjusted performance for real-world scenarios.")
     else:
-        st.warning("⚖️ Both strategies have trade-offs in the Out-of-Sample test. You may prefer **HRP** for slightly lower risk or **MVP** for better returns.")
+        st.warning("⚖️ Both strategies have trade-offs in the Out-of-Sample test. You may prefer **HRP** for slightly lower risk or **MVP** for better returns with a slightly higher risk.")
 
 
 def recommend_stocks(weights_df, strategy_name="HRP", threshold=0.005, tickers={}):
@@ -139,6 +139,6 @@ def recommend_stocks(weights_df, strategy_name="HRP", threshold=0.005, tickers={
     #     stock_name = tickers.get(stock, stock) # fallback to ticker if name not found
     #     st.write(f"- **{stock_name}**: {weight:.2%} of your portfolio")
 
-    total_allocation = selected.sum()
-    if total_allocation < 0.99:
-        st.info(f"⚠️ Total allocation is only {total_allocation:.2%}. Consider reviewing the model or adding more investable assets.")
+    # total_allocation = selected.sum()
+    # if total_allocation < 0.99:
+    #     st.info(f"⚠️ Total allocation is only {total_allocation:.2%}. Consider reviewing the model or adding more investable assets.")

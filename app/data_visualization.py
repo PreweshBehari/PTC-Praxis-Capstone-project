@@ -21,16 +21,33 @@ def create_heatmap(df, topn=10):
     numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
 
     # Focus only on top N most-volatile stocks
-    top_cols = df[numeric_cols].std().sort_values(ascending=False).head(topn).index
+    top_cols = df[numeric_cols].std(axis=0).sort_values(ascending=False).head(topn).index
     corr_matrix = df[top_cols].corr()
 
     # Create heatmap with annotations
     fig = px.imshow(
         corr_matrix,
-        title="Correlation Heatmap",
         text_auto=".2f",  # Annotate with values rounded to 2 decimals
         color_continuous_scale="RdBu",
         zmin=-1, zmax=1
+    )
+
+    # Increase the size of the plot
+    fig.update_layout(
+        width=900,  # Adjust width
+        height=900,  # Adjust height
+        margin=dict(l=0, r=0, t=50, b=0)
+    )
+
+    # Display in Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+
+def create_cov_heatmap(cov_matrix):
+    # Create heatmap with annotations
+    fig = px.imshow(
+        cov_matrix,
+        text_auto=".6f",  # Annotate with values rounded to 6 decimals
+        color_continuous_scale="YlGnBu",
     )
 
     # Increase the size of the plot
@@ -145,8 +162,18 @@ def plot_efficient_frontier2(table, results, weights, tickers_dict):
     min_vol_allocation = min_vol_allocation.T
 
     st.markdown("##### Maximum Sharpe Ratio Portfolio Allocation")
-    st.write(f"Annualised Return: {round(rp, 2)}")
-    st.write(f"Annualised Volatility: {round(sdp,2)}")
+
+    st.info(f"""
+    This portfolio is designed to give you the best possible return for the amount of risk you take.  
+    It balances **how much you expect to earn** against **how much the investment values might go up and down**.
+
+    - The **Sharpe Ratio** measures this balance: higher values mean better returns for each unit of risk.  
+    - This portfolio picks weights for each asset to maximize that ratio.  
+
+    Here are the key figures for this portfolio:  
+    - **Annualised Return:** {rp:.2%} (expected yearly return)  
+    - **Annualised Volatility:** {sdp:.2%} (expected yearly fluctuations in return)
+    """)
 
     # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
     long_max_sharpe_allocation = max_sharpe_allocation.T.reset_index()
@@ -161,8 +188,17 @@ def plot_efficient_frontier2(table, results, weights, tickers_dict):
     st.write(long_max_sharpe_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
     
     st.markdown("##### Minimum Volatility Portfolio Allocation")
-    st.write(f"Annualised Return: {round(rp_min, 2)}")
-    st.write(f"Annualised Volatility: {round(sdp_min,2)}")
+
+    st.info(f"""
+    This portfolio focuses on **minimizing risk**, rather than maximizing returns.  
+    It allocates weights to assets in a way that keeps the overall **fluctuations (volatility) as low as possible**.
+
+    This is a good choice for more conservative investors or those who prefer **steady and stable performance** over time.
+
+    Here are the key figures for this portfolio:  
+    - **Annualised Return:** {rp_min:.2%} (expected yearly return)  
+    - **Annualised Volatility:** {sdp_min:.2%} (expected yearly fluctuations in return)
+    """)
 
     # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
     long_min_vol_allocation= min_vol_allocation.T.reset_index()

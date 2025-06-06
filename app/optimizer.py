@@ -324,10 +324,10 @@ def calculate_sample_metrics(returns, trading_days=252):
                       for each portfolio strategy.
     """
     # Annualized standard deviation (volatility)
-    stddev = returns.std() * np.sqrt(trading_days)
+    stddev = returns.std(axis=0) * np.sqrt(trading_days)
 
     # Sharpe Ratio: Annualized return divided by standard deviation
-    sharp_ratio = (returns.mean() * np.sqrt(trading_days)) / (returns.std())
+    sharp_ratio = (returns.mean() * np.sqrt(trading_days)) / (returns.std(axis=0))
 
     # Create a results table
     results = pd.DataFrame(dict(stdev=stddev, sharp_ratio=sharp_ratio))
@@ -458,12 +458,23 @@ def display_ef_with_selected(returns, tickers_dict, risk_free_rate=0.0):
     min_vol_allocation.allocation = [round(i*100,2)for i in min_vol_allocation.allocation]
     min_vol_allocation = min_vol_allocation.T
     
-    an_vol = np.std(returns) * np.sqrt(252)
+    an_vol = np.std(returns, axis=0) * np.sqrt(252)
     an_rt = mean_returns * 252
 
     st.markdown("##### Maximum Sharpe Ratio Portfolio Allocation")
-    st.write(f"Annualised Return: {round(rp, 2)}")
-    st.write(f"Annualised Volatility: {round(sdp,2)}")
+    # st.write(f"Annualised Return: {round(rp, 2)}")
+    # st.write(f"Annualised Volatility: {round(sdp,2)}")
+
+    st.info(f"""
+    This portfolio is optimized to achieve the **highest possible return per unit of risk**.  
+    The **Sharpe Ratio** measures how efficiently your portfolio is expected to perform, given the risk you take.
+
+    In simple terms, this strategy finds the best balance between **risk and reward**, making it ideal for investors seeking **optimal performance** without taking unnecessary risks.
+
+    Here are the results for this optimized portfolio:  
+    - **Annualised Return:** {rp:.2%} (expected yearly return)  
+    - **Annualised Volatility:** {sdp:.2%} (expected yearly fluctuations in return)
+    """)
 
     # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
     long_max_sharpe_allocation = max_sharpe_allocation.T.reset_index()
@@ -478,8 +489,18 @@ def display_ef_with_selected(returns, tickers_dict, risk_free_rate=0.0):
     st.write(long_max_sharpe_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
 
     st.markdown("##### Minimum Volatility Portfolio Allocation")
-    st.write(f"Annualised Return: {round(rp_min, 2)}")
-    st.write(f"Annualised Volatility: {round(sdp_min,2)}")
+    # st.write(f"Annualised Return: {round(rp_min, 2)}")
+    # st.write(f"Annualised Volatility: {round(sdp_min,2)}")
+
+    st.info(f"""
+    This portfolio is designed to achieve the **lowest possible risk** (volatility), making it ideal for **risk-averse investors**.
+
+    By carefully selecting and weighting assets that work well together, this strategy aims to **reduce fluctuations** in portfolio value — even if it means accepting a slightly lower return.
+
+    Here are the results for this optimized portfolio:  
+    - **Annualised Return:** {rp_min:.2%} (expected yearly return)  
+    - **Annualised Volatility:** {sdp_min:.2%} (expected yearly fluctuations in return)
+    """)
 
     # Convert the DataFrame from wide format (stocks as columns) to long format (stocks as rows with allocation as a value)
     long_min_vol_allocation= min_vol_allocation.T.reset_index()
@@ -493,6 +514,15 @@ def display_ef_with_selected(returns, tickers_dict, risk_free_rate=0.0):
     st.write(long_min_vol_allocation.sort_values(by='Allocation', ascending=False).reset_index(drop=True))
 
     st.markdown("##### Individual Stock Returns and Volatility")
+
+    st.info("""
+    This section provides an overview of the **performance and risk** of each stock in the portfolio.
+
+    - **Annualised Return** shows how much each stock has grown on average over a year.
+    - **Annualised Volatility** indicates how much the stock's return fluctuates — a measure of risk.
+
+    By comparing these values, you can identify **high-return, low-risk candidates**, or understand why certain stocks may add more risk or stability to your portfolio.
+    """)
 
     # Create a list of dictionaries to hold the data
     data = []

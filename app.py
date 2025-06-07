@@ -262,13 +262,13 @@ try:
 
         st.markdown("#### Random Portfolios Generation")
 
+        st.info("Here we generate 25,000 random portfolios by assigning random weights to each asset (ensuring the total allocation = 100%), " \
+        f" using a Risk-Free Rate of **{risk_free_rate:.2f} %**")
+
         num_portfolios = 25000
         risk_free_rate /= 100 # Divide by 100
         # results, sdp, rp, sdp_min, rp_min = simulate_random_portfolios(returns, num_portfolios, risk_free_rate)
         # plot_efficient_frontier(returns, results, sdp, rp, sdp_min, rp_min)
-
-        st.info("Here we generate 25,000 random portfolios by assigning random weights to each asset (ensuring the total allocation = 100%), " \
-        f" using a Risk-Free Rate of **{risk_free_rate:.2f} %**")
 
         results, weights = simulate_random_portfolios2(returns, num_portfolios, risk_free_rate)
         plot_efficient_frontier2(close_prices_data, results, weights, merged_tickers_dict)

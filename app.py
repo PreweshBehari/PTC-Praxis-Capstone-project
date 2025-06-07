@@ -297,10 +297,18 @@ try:
         any_missing_values = close_prices_data.isnull().values.any()
 
         if any_missing_values:
-            st.warning("There are missing values.")
-            # Display columns with missing values (i.e., sum > 0)
-            missing_values = close_prices_data.isnull().sum()
-            st.write(missing_values[missing_values > 0])
+            st.warning("⚠️ There are missing values in the dataset.")
+
+            # Display a summary of missing values per column
+            missing_summary = close_prices_data.isnull().sum()
+            missing_summary = missing_summary[missing_summary > 0].reset_index()
+            missing_summary.columns = ["Stock", "Missing Values"]
+            st.markdown("### Missing Values Summary")
+            st.dataframe(missing_summary)
+
+            # Display the actual rows with missing values
+            st.markdown("### Rows with Missing Values")
+            st.dataframe(close_prices_data[close_prices_data.isnull().any(axis=1)])
 
             st.subheader("Data Cleaning")
 

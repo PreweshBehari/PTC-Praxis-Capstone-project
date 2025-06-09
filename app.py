@@ -42,7 +42,7 @@ from app.data_download import get_tickers, download_close_prices
 from app.data_transformation import split_dataset
 from app.portfolio_insights import display_insights, recommend_stocks
 from app.efficient_frontier import get_efficient_portfolio
-from app.utils import create_unique_value, human_readable_date, get_sp500_spy_etf
+from app.utils import *
 
 
 ##########################################################################################
@@ -254,11 +254,21 @@ try:
         st.write("Let's first look at how the price of each stock has evolved within given time frame.")
         create_stock_price_evolved_plot(close_prices_data, tickers_dict)
 
+        # Display the top 5 stocks with the highest absolute price change between first and last date.
+        top_n_df = get_top_n_stocks_by_price_change(close_prices_data, tickers_dict)
+        st.markdown("##### Top 5 Stocks by Price Change")
+        st.dataframe(top_n_df, use_container_width=True, hide_index=True)
+
         # Calculate percentage return for dataset and plot daily returns
         st.markdown("#### Daily Returns")
         st.write("Another way to plot this is plotting daily returns (percent change compared to the day before). " \
         "By plotting daily returns instead of actual prices, we can see the stocks' volatility.")
         create_daily_returns_plot(returns, tickers_dict)
+
+        # Display the top 5 stocks with the lowest volatility (least daily return fluctuation)
+        top_n_df_returns = get_top_n_low_volatility_stocks(returns, tickers_dict)
+        st.markdown("##### Top 5 Stocks with the lowest volatility (least daily return fluctuation)")
+        st.dataframe(top_n_df_returns, use_container_width=True, hide_index=True)
 
         st.markdown("#### Random Portfolios Generation")
 

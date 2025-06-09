@@ -85,15 +85,20 @@ def create_portfolios_piechart(portfolios):
     st.pyplot(fig)
 
 def create_in_and_out_sample_plots(in_sample_result, out_of_sample_result):
-    # Plotting In-sample cumulative returns
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
-    in_sample_result.cumsum().plot(ax=ax1, title="In-Sample Results")
-    st.pyplot(fig1)
+    # Create two columns
+    col1, col2 = st.columns(2)
 
-    # Plotting Out-of-sample cumulative returns
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    out_of_sample_result.cumsum().plot(ax=ax2, title="Out Of Sample Results")
-    st.pyplot(fig2)
+    # Left column: Plotting In-sample cumulative returns
+    with col1:
+        fig1, ax1 = plt.subplots(figsize=(10, 5))
+        in_sample_result.cumsum().plot(ax=ax1, title="In-Sample Results")
+        st.pyplot(fig1)
+
+    # Right column: Plotting Out-of-sample cumulative returns
+    with col2:
+        fig2, ax2 = plt.subplots(figsize=(10, 5))
+        out_of_sample_result.cumsum().plot(ax=ax2, title="Out Of Sample Results")
+        st.pyplot(fig2)
 
 def create_efficient_frontier_plot(risks, returns):
     fig, ax = plt.subplots(figsize=(10, 6))

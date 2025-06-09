@@ -40,16 +40,23 @@ def display_insights(in_sample, out_sample):
         lower_risk_strategy = "MVP" if mvp_risk < hrp_risk else "HRP"
         better_return_strategy = "MVP" if mvp_sharpe > hrp_sharpe else "HRP"
 
-        # Show metric values
-        st.write("##### 🔹 Risk (Standard Deviation)")
-        st.write(f"- MVP: **{mvp_risk:.3f}** (**{mvp_risk:.1%}**)")
-        st.write(f"- HRP: **{hrp_risk:.3f}** (**{hrp_risk:.1%}**)")
-        st.write(f"✅ **Lower risk:** {lower_risk_strategy}")
+        # Create two columns
+        col1, col2 = st.columns(2)
 
-        st.write("##### 🔹 Sharpe Ratio (Risk-adjusted Return)")
-        st.write(f"- MVP: **{mvp_sharpe:.3f}**")
-        st.write(f"- HRP: **{hrp_sharpe:.3f}**")
-        st.write(f"✅ **Higher Sharpe Ratio:** {better_return_strategy}")
+        # Show metric values
+        # Left column: Risk comparison
+        with col1:
+            st.write("##### 🔹 Risk (Standard Deviation)")
+            st.write(f"- MVP: **{mvp_risk:.3f}** (**{mvp_risk:.1%}**)")
+            st.write(f"- HRP: **{hrp_risk:.3f}** (**{hrp_risk:.1%}**)")
+            st.write(f"✅ **Lower risk:** {lower_risk_strategy}")
+
+        # Right column: Sharpe Ratio comparison
+        with col2:
+            st.write("##### 🔹 Sharpe Ratio (Risk-adjusted Return)")
+            st.write(f"- MVP: **{mvp_sharpe:.3f}**")
+            st.write(f"- HRP: **{hrp_sharpe:.3f}**")
+            st.write(f"✅ **Higher Sharpe Ratio:** {better_return_strategy}")
 
         # Verdict for this sample
         output = None
@@ -64,19 +71,26 @@ def display_insights(in_sample, out_sample):
         data_reset = data.reset_index().rename(columns={"index": "Strategy"})
         st.write("#### 📈 Visual Comparison")
 
-        risk_fig = px.bar(
-            data_reset, x="Strategy", y="stdev",
-            title="Risk (Standard Deviation)", color="Strategy",
-            labels={"stdev": "Standard Deviation"}
-        )
-        st.plotly_chart(risk_fig, use_container_width=True)
+        # Create two columns
+        col1, col2 = st.columns(2)
 
-        sharpe_fig = px.bar(
-            data_reset, x="Strategy", y="sharp_ratio",
-            title="Sharpe Ratio (Risk-Adjusted Return)", color="Strategy",
-            labels={"sharp_ratio": "Sharpe Ratio"}
-        )
-        st.plotly_chart(sharpe_fig, use_container_width=True)
+        # Risk (Standard Deviation) chart in left column
+        with col1:
+            risk_fig = px.bar(
+                data_reset, x="Strategy", y="stdev",
+                title="Risk (Standard Deviation)", color="Strategy",
+                labels={"stdev": "Standard Deviation"}
+            )
+            st.plotly_chart(risk_fig, use_container_width=True)
+
+        # Sharpe Ratio chart in right column
+        with col2:
+            sharpe_fig = px.bar(
+                data_reset, x="Strategy", y="sharp_ratio",
+                title="Sharpe Ratio (Risk-Adjusted Return)", color="Strategy",
+                labels={"sharp_ratio": "Sharpe Ratio"}
+            )
+            st.plotly_chart(sharpe_fig, use_container_width=True)
 
         return output
 

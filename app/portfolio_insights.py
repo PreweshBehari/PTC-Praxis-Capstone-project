@@ -98,11 +98,11 @@ def display_insights(in_sample, out_sample):
     # st.header("📋 Strategy Performance Summary")
 
     st.markdown("#### 6.2.1 In Sample Results")
-    st.dataframe(in_sample)
+    # st.dataframe(in_sample)
     analyze_performance(in_sample, "In Sample")
 
     st.markdown("#### 6.2.2 Out of Sample Results")
-    st.dataframe(out_sample)
+    # st.dataframe(out_sample)
     best_out_sample = analyze_performance(out_sample, "Out of Sample")
 
     # Final recommendation
